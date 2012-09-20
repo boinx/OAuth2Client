@@ -417,6 +417,8 @@ sendingProgressHandler:(NXOAuth2ConnectionSendingProgressHandler)aSendingProgres
     if ([delegate respondsToSelector:@selector(oauthConnection:didReceiveData:)]) {
         [delegate oauthConnection:self didReceiveData:someData];
     }
+	
+	if (sendingProgressHandler) sendingProgressHandler([data length], self.expectedContentLength);
 }
 
 - (void)connectionDidFinishLoading:(NSURLConnection *)connection;
