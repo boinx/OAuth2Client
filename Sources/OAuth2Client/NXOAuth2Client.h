@@ -42,6 +42,8 @@ extern NSString * const NXOAuth2ClientConnectionContextTokenRefresh;
     NSSet       *desiredScope;
     NSString    *userAgent;
     NSString    *assertion;
+    NSString    *keyChainGroup;
+    NSString    *keyChainAccessGroup;
     
     // server information
     NSURL        *authorizeURL;
@@ -64,13 +66,17 @@ extern NSString * const NXOAuth2ClientConnectionContextTokenRefresh;
 @property (nonatomic, copy, readonly) NSString *clientSecret;
 @property (nonatomic, copy, readonly) NSString *tokenType;
 @property (nonatomic, strong, readwrite) NSDictionary *additionalAuthenticationParameters;
+@property (nonatomic, strong, readwrite) NSDictionary *customHeaderFields;
 
 @property (nonatomic, copy) NSSet *desiredScope;
+@property (nonatomic, copy) NSString *tokenRequestHTTPMethod; // defaults to POST
 @property (nonatomic, copy) NSString *userAgent;
+@property (nonatomic, copy) NSString *acceptType; // defaults to application/json
 
 @property (nonatomic, strong) NXOAuth2AccessToken    *accessToken;
 @property (nonatomic, unsafe_unretained) NSObject<NXOAuth2ClientDelegate>*    delegate;
 
+@property (nonatomic, readonly) NXOAuth2Connection *authConnection;
 
 /*!
  * If set to NO, the access token is not stored any keychain, will be removed if it was.
@@ -81,30 +87,35 @@ extern NSString * const NXOAuth2ClientConnectionContextTokenRefresh;
 /*!
  * Initializes the Client
  */
-- (id)initWithClientID:(NSString *)clientId
-          clientSecret:(NSString *)clientSecret
-          authorizeURL:(NSURL *)authorizeURL
-              tokenURL:(NSURL *)tokenURL
-              delegate:(NSObject<NXOAuth2ClientDelegate> *)delegate;
+- (instancetype)initWithClientID:(NSString *)clientId
+                    clientSecret:(NSString *)clientSecret
+                    authorizeURL:(NSURL *)authorizeURL
+                        tokenURL:(NSURL *)tokenURL
+                        delegate:(NSObject<NXOAuth2ClientDelegate> *)delegate;
 
-- (id)initWithClientID:(NSString *)clientId
-          clientSecret:(NSString *)clientSecret
-          authorizeURL:(NSURL *)authorizeURL
-              tokenURL:(NSURL *)tokenURL
-           accessToken:(NXOAuth2AccessToken *)accessToken
-            persistent:(BOOL)shouldPersist
-              delegate:(NSObject<NXOAuth2ClientDelegate> *)delegate;
+- (instancetype)initWithClientID:(NSString *)clientId
+                    clientSecret:(NSString *)clientSecret
+                    authorizeURL:(NSURL *)authorizeURL
+                        tokenURL:(NSURL *)tokenURL
+                     accessToken:(NXOAuth2AccessToken *)accessToken
+                   keyChainGroup:(NSString *)keyChainGroup
+             keyChainAccessGroup:(NSString *)keyChainAccessGroup
+                      persistent:(BOOL)shouldPersist
+                        delegate:(NSObject<NXOAuth2ClientDelegate> *)delegate;
 
-- (id)initWithClientID:(NSString *)clientId
-          clientSecret:(NSString *)clientSecret
-          authorizeURL:(NSURL *)authorizeURL
-              tokenURL:(NSURL *)tokenURL
-           accessToken:(NXOAuth2AccessToken *)accessToken
-             tokenType:(NSString *)tokenType
-            persistent:(BOOL)shouldPersist
-              delegate:(NSObject<NXOAuth2ClientDelegate> *)delegate;
+- (instancetype)initWithClientID:(NSString *)clientId
+                    clientSecret:(NSString *)clientSecret
+                    authorizeURL:(NSURL *)authorizeURL
+                        tokenURL:(NSURL *)tokenURL
+                     accessToken:(NXOAuth2AccessToken *)accessToken
+                       tokenType:(NSString *)tokenType
+                   keyChainGroup:(NSString *)keyChainGroup
+             keyChainAccessGroup:(NSString *)keyChainAccessGroup
+                      persistent:(BOOL)shouldPersist
+                        delegate:(NSObject<NXOAuth2ClientDelegate> *)delegate;
 
 - (BOOL)openRedirectURL:(NSURL *)URL;
+- (BOOL)openRedirectURL:(NSURL *)URL error: (NSError**) error;
 
 
 #pragma mark Authorisation Methods
@@ -122,6 +133,7 @@ extern NSString * const NXOAuth2ClientConnectionContextTokenRefresh;
 /*!
  * Authenticate with username & password (User Credentials Flow)
  */
+- (void)authenticateWithClientCredentials;
 - (void)authenticateWithUsername:(NSString *)username password:(NSString *)password;
 
 /*!
@@ -133,6 +145,7 @@ extern NSString * const NXOAuth2ClientConnectionContextTokenRefresh;
 #pragma mark Public
 
 - (void)requestAccess;
+- (void)requestAccessAndRetryConnection:(NXOAuth2Connection *)retryConnection;
 
 - (void)refreshAccessToken;
 - (void)refreshAccessTokenAndRetryConnection:(NXOAuth2Connection *)retryConnection;

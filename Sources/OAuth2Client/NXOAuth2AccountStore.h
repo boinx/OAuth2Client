@@ -34,7 +34,9 @@ extern NSString * const kNXOAuth2AccountStoreConfigurationTokenURL;
 extern NSString * const kNXOAuth2AccountStoreConfigurationRedirectURL;
 extern NSString * const kNXOAuth2AccountStoreConfigurationScope;
 extern NSString * const kNXOAuth2AccountStoreConfigurationTokenType;
-
+extern NSString * const kNXOAuth2AccountStoreConfigurationTokenRequestHTTPMethod;
+extern NSString * const kNXOAuth2AccountStoreConfigurationKeyChainGroup;
+extern NSString * const kNXOAuth2AccountStoreConfigurationKeyChainAccessGroup;
 
 /* 
  * Requires a NSDictionary as a value.
@@ -43,6 +45,13 @@ extern NSString * const kNXOAuth2AccountStoreConfigurationTokenType;
  * "username", "password", "redirect_uri", "code", "assertion_type" and "assertion" are not allowed.
  */
 extern NSString * const kNXOAuth2AccountStoreConfigurationAdditionalAuthenticationParameters;
+
+/*
+ * Requires a NSDictionary as a value.
+ * They are passed onto the HTTP Header Fields request as additional parameters.
+ * Example of a valid setup: @{ @"Content-type" : @"application/x-www-form-urlencoded" }
+ */
+extern NSString * const kNXOAuth2AccountStoreConfigurationCustomHeaderFields;
 
 
 #pragma mark Account Type
@@ -68,10 +77,12 @@ typedef void(^NXOAuth2PreparedAuthorizationURLHandler)(NSURL *preparedURL);
     NSMutableDictionary *trustedCertificatesHandler;
 }
 
-+ (id)sharedStore;
++ (instancetype)sharedStore;
 
 #pragma mark Accessors
 
+@property(nonatomic, strong) NSString *keychainAccessGroup;
+@property(nonatomic, strong) NSString *keychainServiceName;
 @property(nonatomic, strong, readonly) NSArray *accounts;
 - (NSArray *)accountsWithAccountType:(NSString *)accountType;
 - (NXOAuth2Account *)accountWithIdentifier:(NSString *)identifier;
@@ -92,6 +103,7 @@ typedef void(^NXOAuth2PreparedAuthorizationURLHandler)(NSURL *preparedURL);
    authorizationURL:(NSURL *)anAuthorizationURL
            tokenURL:(NSURL *)aTokenURL
         redirectURL:(NSURL *)aRedirectURL
+      keyChainGroup:(NSString *)aKeyChainGroup
      forAccountType:(NSString *)anAccountType;
 
 - (void)setClientID:(NSString *)aClientID
@@ -100,6 +112,7 @@ typedef void(^NXOAuth2PreparedAuthorizationURLHandler)(NSURL *preparedURL);
    authorizationURL:(NSURL *)anAuthorizationURL
            tokenURL:(NSURL *)aTokenURL
         redirectURL:(NSURL *)aRedirectURL
+      keyChainGroup:(NSString *)aKeyChainGroup
           tokenType:(NSString *)aTokenType
      forAccountType:(NSString *)anAccountType;
 
@@ -123,11 +136,14 @@ typedef void(^NXOAuth2PreparedAuthorizationURLHandler)(NSURL *preparedURL);
 - (void)requestAccessToAccountWithType:(NSString *)accountType withPreparedAuthorizationURLHandler:(NXOAuth2PreparedAuthorizationURLHandler)aPreparedAuthorizationURLHandler;
 - (void)requestAccessToAccountWithType:(NSString *)accountType username:(NSString *)username password:(NSString *)password;
 - (void)requestAccessToAccountWithType:(NSString *)accountType assertionType:(NSURL *)assertionType assertion:(NSString *)assertion;
+- (void)requestClientCredentialsAccessWithType:(NSString *)accountType;
+- (void)addAccount:(NXOAuth2Account *)account;
 - (void)removeAccount:(NXOAuth2Account *)account;
 
 
 #pragma mark Handle OAuth Redirects
 
 - (BOOL)handleRedirectURL:(NSURL *)URL;
+- (BOOL)handleRedirectURL:(NSURL *)aURL error: (NSError**) error;
 
 @end

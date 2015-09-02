@@ -64,10 +64,10 @@ sendingProgressHandler:(NXOAuth2ConnectionSendingProgressHandler)aSendingProgres
     return self;
 }
 
-- (id)initWithRequest:(NSMutableURLRequest *)aRequest
-    requestParameters:(NSDictionary *)someRequestParameters
-          oauthClient:(NXOAuth2Client *)aClient
-             delegate:(NSObject<NXOAuth2ConnectionDelegate> *)aDelegate;
+- (instancetype)initWithRequest:(NSMutableURLRequest *)aRequest
+              requestParameters:(NSDictionary *)someRequestParameters
+                    oauthClient:(NXOAuth2Client *)aClient
+                       delegate:(NSObject<NXOAuth2ConnectionDelegate> *)aDelegate;
 {
     self = [super init];
     if (self) {
@@ -89,10 +89,6 @@ sendingProgressHandler:(NXOAuth2ConnectionSendingProgressHandler)aSendingProgres
     sendConnectionDidEndNotification = NO;
 
     [connection cancel];
-    
-#if (NXOAuth2ConnectionDebug)
-    [startDate release];
-#endif
 }
 
 
@@ -169,7 +165,7 @@ sendingProgressHandler:(NXOAuth2ConnectionSendingProgressHandler)aSendingProgres
         // if token is expired don't bother starting this connection.
         NSDate *tenSecondsAgo = [NSDate dateWithTimeIntervalSinceNow:(-10)];
         NSDate *tokenExpiresAt = client.accessToken.expiresAt;
-        if ([tenSecondsAgo earlierDate:tokenExpiresAt] == tokenExpiresAt) {
+        if (client.accessToken.refreshToken && [tenSecondsAgo earlierDate:tokenExpiresAt] == tokenExpiresAt) {
             [self cancel];
             [client refreshAccessTokenAndRetryConnection:self];
             return nil;
@@ -197,13 +193,13 @@ sendingProgressHandler:(NXOAuth2ConnectionSendingProgressHandler)aSendingProgres
         [startRequest setValue:client.userAgent forHTTPHeaderField:@"User-Agent"];
     }
     
+    if (client.acceptType) {
+        [startRequest setValue:client.acceptType forHTTPHeaderField:@"Accept"];
+    }
+    
     NSURLConnection *aConnection = [[NSURLConnection alloc] initWithRequest:startRequest delegate:self startImmediately:NO];    // don't start yet
     [aConnection scheduleInRunLoop:[NSRunLoop currentRunLoop] forMode:NSDefaultRunLoopMode];    // let's first schedule it in the current runloop. (see http://github.com/soundcloud/cocoa-api-wrapper/issues#issue/2 )
     [aConnection start];    // now start
-    
-#if (NXOAuth2ConnectionDebug)
-    [startDate release]; startDate = [[NSDate alloc] init];
-#endif
     
     if (!sendConnectionDidEndNotification) [[NSNotificationCenter defaultCenter] postNotificationName:NXOAuth2ConnectionDidStartNotification object:self];
     sendConnectionDidEndNotification = YES;
@@ -227,19 +223,37 @@ sendingProgressHandler:(NXOAuth2ConnectionSendingProgressHandler)aSendingProgres
     NSString *httpMethod = [aRequest HTTPMethod];
     if ([httpMethod caseInsensitiveCompare:@"POST"] != NSOrderedSame
         && [httpMethod caseInsensitiveCompare:@"PUT"] != NSOrderedSame) {
+        
         aRequest.URL = [aRequest.URL nxoauth2_URLByAddingParameters:parameters];
+        
     } else {
-        NSInputStream *postBodyStream = [[NXOAuth2PostBodyStream alloc] initWithParameters:parameters];
         
-        NSString *contentType = [NSString stringWithFormat:@"multipart/form-data; boundary=%@", [(NXOAuth2PostBodyStream *)postBodyStream boundary]];
-        NSString *contentLength = [NSString stringWithFormat:@"%lld", [(NXOAuth2PostBodyStream *)postBodyStream length]];
-        [aRequest setValue:contentType forHTTPHeaderField:@"Content-Type"];
-        [aRequest setValue:contentLength forHTTPHeaderField:@"Content-Length"];
+        NSString *contentType = [aRequest valueForHTTPHeaderField:@"Content-Type"];
         
-        [aRequest setHTTPBodyStream:postBodyStream];
+        if (!contentType || [contentType isEqualToString:@"multipart/form-data"]) {
+        
+            // sends the POST/PUT request as multipart/form-data as default
+            
+            NSInputStream *postBodyStream = [[NXOAuth2PostBodyStream alloc] initWithParameters:parameters];
+            
+            contentType = [NSString stringWithFormat:@"multipart/form-data; boundary=%@",[(NXOAuth2PostBodyStream *)postBodyStream boundary]];
+            NSString *contentLength = [NSString stringWithFormat:@"%lld", [(NXOAuth2PostBodyStream *)postBodyStream length]];
+            [aRequest setValue:contentType forHTTPHeaderField:@"Content-Type"];
+            [aRequest setValue:contentLength forHTTPHeaderField:@"Content-Length"];
+            
+            [aRequest setHTTPBodyStream:postBodyStream];
+            
+        } else if ([contentType isEqualToString:@"application/x-www-form-urlencoded"]) {
+            
+            // sends the POST/PUT request as application/x-www-form-urlencoded
+            
+            NSString *query = [[aRequest.URL nxoauth2_URLByAddingParameters:parameters] query];
+            [aRequest setHTTPBody:[query dataUsingEncoding:NSUTF8StringEncoding]];
+            
+        }
+
     }
 }
-
 
 - (BOOL)trustsAuthenticationChallenge:(NSURLAuthenticationChallenge *)challenge
                           forHostname:(NSString *)hostname
@@ -401,12 +415,13 @@ sendingProgressHandler:(NXOAuth2ConnectionSendingProgressHandler)aSendingProgres
             }
         }
     }
-    if (/*self.statusCode == 401 // TODO: check for status code once the bug returning 500 is fixed
-         &&*/ client.accessToken.refreshToken != nil
-        && authenticateHeader
-        && [authenticateHeader rangeOfString:@"expired_token"].location != NSNotFound) {
+    
+    if (client.authConnection != self && authenticateHeader && client.accessToken.refreshToken != nil && [authenticateHeader rangeOfString:@"expired_token"].location != NSNotFound) {
         [self cancel];
         [client refreshAccessTokenAndRetryConnection:self];
+    } else if (client.authConnection != self && authenticateHeader && client) {
+        [self cancel];
+        [client requestAccessAndRetryConnection:self];
     } else {
         if ([delegate respondsToSelector:@selector(oauthConnection:didReceiveData:)]) {
             [delegate oauthConnection:self didReceiveData:data];    // inform the delegate that we start with empty data
